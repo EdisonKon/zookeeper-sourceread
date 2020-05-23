@@ -400,6 +400,7 @@ public class ClientCnxn {
         this.hostProvider = hostProvider;
         this.chrootPath = chrootPath;
 
+        //连接超时时间
         connectTimeout = sessionTimeout / hostProvider.size();
         readTimeout = sessionTimeout * 2 / 3;
         readOnly = canBeReadOnly;
@@ -1679,6 +1680,7 @@ public class ClientCnxn {
 
     private void initRequestTimeout() {
         try {
+            //初始化请求超时时间,k v
             requestTimeout = clientConfig.getLong(
                     ZKClientConfig.ZOOKEEPER_REQUEST_TIMEOUT,
                     ZKClientConfig.ZOOKEEPER_REQUEST_TIMEOUT_DEFAULT);
