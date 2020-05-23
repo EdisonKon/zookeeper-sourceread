@@ -24,6 +24,7 @@ import org.apache.zookeeper.data.Stat;
 /**
  * get command for cli
  */
+//get命令的实现类
 public class GetCommand extends CliCommand {
 
     private static Options options = new Options();
@@ -41,13 +42,14 @@ public class GetCommand extends CliCommand {
 
     @Override
     public CliCommand parse(String[] cmdArgs) throws CliParseException {
-
+        //进行解析
         Parser parser = new PosixParser();
         try {
             cl = parser.parse(options, cmdArgs);
         } catch (ParseException ex) {
             throw new CliParseException(ex);
         }
+        //获取命令的参数
         args = cl.getArgs();
         if (args.length < 2) {
             throw new CliParseException(getUsageStr());
@@ -75,6 +77,7 @@ public class GetCommand extends CliCommand {
         }
     }
 
+    //执行zk命令(get)
     @Override
     public boolean exec() throws CliException {
         boolean watch = cl.hasOption("w");

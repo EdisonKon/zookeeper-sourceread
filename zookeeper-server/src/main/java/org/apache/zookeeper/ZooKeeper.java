@@ -2029,6 +2029,7 @@ public class ZooKeeper implements AutoCloseable {
      * @throws InterruptedException If the server transaction is interrupted.
      * @throws IllegalArgumentException if an invalid path is specified
      */
+    //获取数据
     public byte[] getData(final String path, Watcher watcher, Stat stat)
         throws KeeperException, InterruptedException
      {
@@ -2049,6 +2050,7 @@ public class ZooKeeper implements AutoCloseable {
         request.setPath(serverPath);
         request.setWatch(watcher != null);
         GetDataResponse response = new GetDataResponse();
+        //提交请求
         ReplyHeader r = cnxn.submitRequest(h, request, response, wcb);
         if (r.getErr() != 0) {
             throw KeeperException.create(KeeperException.Code.get(r.getErr()),
