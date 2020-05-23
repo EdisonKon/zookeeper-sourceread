@@ -880,10 +880,12 @@ public class ZooKeeper implements AutoCloseable {
         ConnectStringParser connectStringParser = new ConnectStringParser(
                 connectString);
         hostProvider = aHostProvider;
-
+        //创建一个连接客户端连接(新开线程)
+        //getClientCnxnSocket() 创建一个socket连接
         cnxn = createConnection(connectStringParser.getChrootPath(),
                 hostProvider, sessionTimeout, this, watchManager,
                 getClientCnxnSocket(), canBeReadOnly);
+        //启动zookeeper 客户端请求线程
         cnxn.start();
     }
 
@@ -892,6 +894,7 @@ public class ZooKeeper implements AutoCloseable {
             HostProvider hostProvider, int sessionTimeout, ZooKeeper zooKeeper,
             ClientWatchManager watcher, ClientCnxnSocket clientCnxnSocket,
             boolean canBeReadOnly) throws IOException {
+        //创建一个client访问线程
         return new ClientCnxn(chrootPath, hostProvider, sessionTimeout, this,
                 watchManager, clientCnxnSocket, canBeReadOnly);
     }

@@ -154,6 +154,7 @@ public class ZooKeeperAdmin extends ZooKeeper {
      *
      * @see ZooKeeper#ZooKeeper(String, int, Watcher, boolean)
      */
+    //connectString 除了机器地址外 最后还可以加上一个目录,就是所有该集群的机器都会访问到该目录,详细可看上边注释
     public ZooKeeperAdmin(String connectString, int sessionTimeout, Watcher watcher,
                      boolean canBeReadOnly) throws IOException {
         super(connectString, sessionTimeout, watcher, canBeReadOnly);

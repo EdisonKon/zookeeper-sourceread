@@ -155,6 +155,7 @@ public class ZooKeeperMain {
      * A storage class for both command line options and shell commands.
      *
      */
+    //命令行参数解析
     static class MyCommandOptions {
 
         private Map<String,String> options = new HashMap<String,String>();
@@ -164,7 +165,7 @@ public class ZooKeeperMain {
         public static final Pattern QUOTED_PATTERN = Pattern.compile("^([\'\"])(.*)(\\1)$");
 
         public MyCommandOptions() {
-            //默认
+          //默认构造 本地的2181端口的server
           options.put("server", "localhost:2181");
           options.put("timeout", "30000");
         }
@@ -281,16 +282,27 @@ public class ZooKeeperMain {
     }
 
     protected void connectToZK(String newHost) throws InterruptedException, IOException {
+        //进行zk的初始化
         if (zk != null && zk.getState().isAlive()) {
             zk.close();
         }
 
         host = newHost;
+        //是否只读
+        //用于标识当前会话是否支持“read-only”模式（只读模式）。默认情况下，在ZooKeeper集群中，
+        // 一个节点如果和集群中过半及以上节点失去网络连接（建立不了连接），那么这个机器将不再处理客户端请求（包括读写请求）。
+        // 但是在某些使用场景下，当ZooKeeper服务器发生此类故障的时候，还是希望ZooKeeper服务器能够提供读服务（写服务肯定无法提供），
+        // 这就是ZooKeeper的“read-only”模式。但客户端可以连接某一分区的服务器，它将以只读模式连接到其中一个服务器，
+        // 允许读取请求，而不允许写入请求，然后继续在后台寻找更多数的服务器
         boolean readOnly = cl.getOption("readonly") != null;
+        //是否安全访问机制  TODO 不了解
         if (cl.getOption("secure") != null) {
             System.setProperty(ZKClientConfig.SECURE_CLIENT, "true");
             System.out.println("Secure connection is enabled");
         }
+        //创建zookeeperadmin 客户端主要类的实例,该类是用于配置集群访问和集群任务管理等等
+        //host 可以设置多个(集群模式),连接时候会随机选一个进行连接.如果建立连接失败，将尝试连接另一个服务器
+        //watcher 默认的消息通知接口
         zk = new ZooKeeperAdmin(host, Integer.parseInt(cl.getOption("timeout")), new MyWatcher(), readOnly);
     }
     
@@ -301,8 +313,11 @@ public class ZooKeeperMain {
     }
 
     public ZooKeeperMain(String args[]) throws IOException, InterruptedException {
+        //self命令行插件解析program参数,无参则默认连接localhost:2181
         cl.parseOptions(args);
+        //Connecting to 127.0.0.1:2181
         System.out.println("Connecting to " + cl.getOption("server"));
+        //开始连接
         connectToZK(cl.getOption("server"));
     }
 

@@ -388,6 +388,7 @@ public class ClientCnxn {
      *                mode in case of partitioning
      * @throws IOException
      */
+    //客户端请求线程构造
     public ClientCnxn(String chrootPath, HostProvider hostProvider, int sessionTimeout, ZooKeeper zooKeeper,
             ClientWatchManager watcher, ClientCnxnSocket clientCnxnSocket,
             long sessionId, byte[] sessionPasswd, boolean canBeReadOnly) {
@@ -403,7 +404,9 @@ public class ClientCnxn {
         readTimeout = sessionTimeout * 2 / 3;
         readOnly = canBeReadOnly;
 
+        //创建一个发送线程
         sendThread = new SendThread(clientCnxnSocket);
+        //创建一个事件线程
         eventThread = new EventThread();
         this.clientConfig=zooKeeper.getClientConfig();
         initRequestTimeout();
@@ -416,6 +419,7 @@ public class ClientCnxn {
 
     private Object eventOfDeath = new Object();
 
+    //监听的事件对
     private static class WatcherSetEventPair {
         private final Set<Watcher> watchers;
         private final WatchedEvent event;
@@ -505,17 +509,22 @@ public class ClientCnxn {
         @SuppressFBWarnings("JLM_JSR166_UTILCONCURRENT_MONITORENTER")
         public void run() {
            try {
+               //设置running = true
               isRunning = true;
+              //一直去遍历等待事件队列里是不是有新的事件
               while (true) {
                  Object event = waitingEvents.take();
+                 //事件是被kill的话就kill
                  if (event == eventOfDeath) {
                     wasKilled = true;
                  } else {
+                     //处理事件
                     processEvent(event);
                  }
                  if (wasKilled)
                     synchronized (waitingEvents) {
                        if (waitingEvents.isEmpty()) {
+                           //设置running = false
                           isRunning = false;
                           break;
                        }
@@ -524,11 +533,11 @@ public class ClientCnxn {
            } catch (InterruptedException e) {
               LOG.error("Event thread exiting due to interruption", e);
            }
-
+            //正常退出的话会打印这句话
             LOG.info("EventThread shut down for session: 0x{}",
                      Long.toHexString(getSessionId()));
         }
-
+        //事件的处理
        private void processEvent(Object event) {
           try {
               if (event instanceof WatcherSetEventPair) {
@@ -536,6 +545,7 @@ public class ClientCnxn {
                   WatcherSetEventPair pair = (WatcherSetEventPair) event;
                   for (Watcher watcher : pair.watchers) {
                       try {
+                          //相应的watcher进行处理
                           watcher.process(pair.event);
                       } catch (Throwable t) {
                           LOG.error("Error while calling watcher ", t);
@@ -829,6 +839,8 @@ public class ClientCnxn {
      * This class services the outgoing request queue and generates the heart
      * beats. It also spawns the ReadThread.
      */
+    //发送线程可以读取响应,生成心跳
+    //new WatchedEvent(event) 生成一个事件,放到队列queue(阻塞队列) TODO 具体事件
     class SendThread extends ZooKeeperThread {
         private long lastPingSentNs;
         private final ClientCnxnSocket clientCnxnSocket;
