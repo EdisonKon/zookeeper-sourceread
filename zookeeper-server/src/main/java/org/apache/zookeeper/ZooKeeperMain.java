@@ -263,18 +263,20 @@ public class ZooKeeperMain {
      *
      */
 
-
+    //添加执行命令历史
     protected void addToHistory(int i,String cmd) {
         history.put(i, cmd);
     }
 
+    //获取所有的可执行command 的key
     public static List<String> getCommands() {
         List<String> cmdList = new ArrayList<String>(commandMap.keySet());
         Collections.sort(cmdList);
         return cmdList;
     }
 
-    protected String getPrompt() {       
+    //打印当前zk host  状态  命令执行数
+    protected String getPrompt() {
         return "[zk: " + host + "("+zk.getState()+")" + " " + commandCount + "] ";
     }
 
@@ -354,6 +356,7 @@ public class ZooKeeperMain {
                 String line;
                 Method readLine = consoleC.getMethod("readLine", String.class);
                 //阻塞等待用户在jconsole里输入信息
+                //getPrompt() 打印类似 "等待用户输入" 的话术
                 while ((line = (String)readLine.invoke(console, getPrompt())) != null) {
                     executeLine(line);
                 }
