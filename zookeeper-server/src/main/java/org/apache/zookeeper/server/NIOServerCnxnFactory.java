@@ -342,7 +342,9 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
      */
     class SelectorThread extends AbstractSelectThread {
         private final int id;
+        //接收请求的队列
         private final Queue<SocketChannel> acceptedQueue;
+        //更新请求的队列
         private final Queue<SelectionKey> updateQueue;
 
         public SelectorThread(int id) throws IOException {
@@ -746,19 +748,23 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     @Override
     public void start() {
         stopped = false;
+        //工作现场池
         if (workerPool == null) {
             workerPool = new WorkerService(
                 "NIOWorker", numWorkerThreads, false);
         }
+        //nio的selector现场
         for(SelectorThread thread : selectorThreads) {
             if (thread.getState() == Thread.State.NEW) {
                 thread.start();
             }
         }
+        //启动接收线程
         // ensure thread is started once and only once
         if (acceptThread.getState() == Thread.State.NEW) {
             acceptThread.start();
         }
+        //链接过期线程
         if (expirerThread.getState() == Thread.State.NEW) {
             expirerThread.start();
         }
@@ -767,8 +773,11 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     @Override
     public void startup(ZooKeeperServer zks, boolean startServer)
             throws IOException, InterruptedException {
+        //线程启动
         start();
+        //设置zk
         setZooKeeperServer(zks);
+        //如果是要启动,那么加载数据 和 注册监听等
         if (startServer) {
             zks.startdata();
             zks.startup();
@@ -932,6 +941,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         }
 
         if (zkServer != null) {
+            //zkserver停止(进入)
             zkServer.shutdown();
         }
     }

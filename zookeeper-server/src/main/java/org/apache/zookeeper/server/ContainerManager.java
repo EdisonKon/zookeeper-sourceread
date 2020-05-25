@@ -59,6 +59,7 @@ public class ContainerManager {
         this.requestProcessor = requestProcessor;
         this.checkIntervalMs = checkIntervalMs;
         this.maxPerMinute = maxPerMinute;
+        //定时器清理
         timer = new Timer("ContainerManagerTask", true);
 
         LOG.info(String.format("Using checkIntervalMs=%d maxPerMinute=%d",
@@ -69,12 +70,15 @@ public class ContainerManager {
      * start/restart the timer the runs the check. Can safely be called
      * multiple times.
      */
+    //并非线程的start 而是普通的起名,跟线程没事关系.
+    //内部使用timerTask继承runnable 放入timer的定时任务中
     public void start() {
         if (task.get() == null) {
             TimerTask timerTask = new TimerTask() {
                 @Override
                 public void run() {
                     try {
+                        //检测容器内的节点
                         checkContainers();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
@@ -138,6 +142,7 @@ public class ContainerManager {
     }
 
     // VisibleForTesting
+    //获取zktree的节点可访问,存活的
     protected Collection<String> getCandidates() {
         Set<String> candidates = new HashSet<String>();
         for (String containerPath : zkDb.getDataTree().getContainers()) {

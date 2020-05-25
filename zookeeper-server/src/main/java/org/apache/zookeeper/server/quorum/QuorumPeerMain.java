@@ -67,6 +67,7 @@ import org.apache.zookeeper.server.quorum.QuorumPeerConfig.ConfigException;
  * In addition to the config file. There is a file in the data directory called
  * "myid" that contains the server id as an ASCII decimal value.
  *
+ * 集群启动模式
  */
 @InterfaceAudience.Public
 public class QuorumPeerMain {
@@ -82,6 +83,7 @@ public class QuorumPeerMain {
      * @param args path to the configfile
      */
     public static void main(String[] args) {
+        //集群模式主类
         QuorumPeerMain main = new QuorumPeerMain();
         try {
             main.initializeAndRun(args);

@@ -128,6 +128,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
         failCreate = b;
     }
     @Override
+    //请求的预处理.
     public void run() {
         try {
             while (true) {
@@ -369,6 +370,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
             case OpCode.create2:
             case OpCode.createTTL:
             case OpCode.createContainer: {
+                //预处理创建请求
                 pRequest2TxnCreate(type, request, record, deserialize);
                 break;
             }
@@ -624,6 +626,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
         }
     }
 
+    //对请求进行验证等一系列操作后 重新打包成request 并且在outstandingChanges存储修改记录
     private void pRequest2TxnCreate(int type, Request request, Record record, boolean deserialize) throws IOException, KeeperException {
         if (deserialize) {
             ByteBufferInputStream.byteBuffer2Record(request.request, record);
@@ -689,6 +692,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
         parentRecord = parentRecord.duplicate(request.getHdr().getZxid());
         parentRecord.childCount++;
         parentRecord.stat.setCversion(newCversion);
+        //存放修改的记录
         addChangeRecord(parentRecord);
         addChangeRecord(new ChangeRecord(request.getHdr().getZxid(), path, s, 0, listACL));
     }
@@ -727,6 +731,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
      *
      * @param request
      */
+    //预处理
     protected void pRequest(Request request) throws RequestProcessorException {
         // LOG.info("Prep>>> cxid = " + request.cxid + " type = " +
         // request.type + " id = 0x" + Long.toHexString(request.sessionId));
@@ -738,6 +743,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
             case OpCode.createContainer:
             case OpCode.create:
             case OpCode.create2:
+                //封装的创建请求
                 CreateRequest create2Request = new CreateRequest();
                 pRequest2Txn(request.type, zks.getNextZxid(), request, create2Request, true);
                 break;
@@ -902,6 +908,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
             }
         }
         request.zxid = zks.getZxid();
+        //转给下一个处理者刚刚封装处理好的数据
         nextProcessor.processRequest(request);
     }
 

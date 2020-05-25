@@ -258,6 +258,7 @@ public class FileTxnSnapLog {
      * @return the highest zxid restored.
      * @throws IOException
      */
+    //从事务日志中还原信息
     public long fastForwardFromEdits(DataTree dt, Map<Long, Integer> sessions,
                                      PlayBackListener listener) throws IOException {
         TxnIterator itr = txnLog.read(dt.lastProcessedZxid+1);
@@ -272,6 +273,7 @@ public class FileTxnSnapLog {
                     //empty logs
                     return dt.lastProcessedZxid;
                 }
+                //处理最新的未被提交的事务,根据的zxid判断
                 if (hdr.getZxid() < highestZxid && highestZxid != 0) {
                     LOG.error("{}(highestZxid) > {}(next log) for type {}",
                             highestZxid, hdr.getZxid(), hdr.getType());

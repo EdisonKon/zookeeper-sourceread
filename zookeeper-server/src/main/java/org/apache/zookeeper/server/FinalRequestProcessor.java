@@ -101,6 +101,7 @@ public class FinalRequestProcessor implements RequestProcessor {
         this.zks = zks;
     }
 
+    //进行内存中的节点操作
     public void processRequest(Request request) {
         if (LOG.isDebugEnabled()) {
             LOG.debug("Processing request:: " + request);
@@ -180,6 +181,7 @@ public class FinalRequestProcessor implements RequestProcessor {
         long lastZxid = zks.getZKDatabase().getDataTreeLastProcessedZxid();
 
         String lastOp = "NA";
+        //zxid的增长
         zks.decInProcess();
         Code err = Code.OK;
         Record rsp = null;

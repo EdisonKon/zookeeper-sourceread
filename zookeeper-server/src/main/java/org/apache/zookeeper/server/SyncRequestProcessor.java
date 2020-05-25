@@ -105,6 +105,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
             int randRoll = r.nextInt(snapCount/2);
             while (true) {
                 Request si = null;
+                //会阻塞,一个一个的处理,toflush是处理已经ack等待提交的request
                 if (toFlush.isEmpty()) {
                     si = queuedRequests.take();
                 } else {
@@ -119,13 +120,16 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
                 }
                 if (si != null) {
                     // track the number of records written to the log
+                    //写入到事务日志(本地日志文件)
                     if (zks.getZKDatabase().append(si)) {
                         logCount++;
                         if (logCount > (snapCount / 2 + randRoll)) {
                             randRoll = r.nextInt(snapCount/2);
                             // roll the log
+                            //日志太多了需要清理掉一半的日志
                             zks.getZKDatabase().rollLog();
                             // take a snapshot
+                            //创建快照
                             if (snapInProcess != null && snapInProcess.isAlive()) {
                                 LOG.warn("Too busy to snap, skipping");
                             } else {
@@ -148,6 +152,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
                         // flushes (writes), then just pass this to the next
                         // processor
                         if (nextProcessor != null) {
+                            //没有需要刷盘的request,那就直接转给下一个处理者
                             nextProcessor.processRequest(si);
                             if (nextProcessor instanceof Flushable) {
                                 ((Flushable)nextProcessor).flush();
@@ -155,7 +160,9 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
                         }
                         continue;
                     }
+                    //toflush不是null,也就是还有没刷盘的,那么就添加请求 进行等待刷盘处理
                     toFlush.add(si);
+                    //需要刷盘的大于1k 强制刷盘
                     if (toFlush.size() > 1000) {
                         flush(toFlush);
                     }
@@ -169,6 +176,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
         LOG.info("SyncRequestProcessor exited!");
     }
 
+    //进行刷盘
     private void flush(LinkedList<Request> toFlush)
         throws IOException, RequestProcessorException
     {
@@ -179,6 +187,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
         while (!toFlush.isEmpty()) {
             Request i = toFlush.remove();
             if (nextProcessor != null) {
+                //刷盘之后让下一个处理者处理request
                 nextProcessor.processRequest(i);
             }
         }
@@ -211,6 +220,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
 
     public void processRequest(Request request) {
         // request.addRQRec(">sync");
+        //放入同步处理队列
         queuedRequests.add(request);
     }
 

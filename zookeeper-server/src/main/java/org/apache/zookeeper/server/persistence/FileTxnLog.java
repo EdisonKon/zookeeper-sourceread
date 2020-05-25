@@ -241,6 +241,7 @@ public class FileTxnLog implements TxnLog {
      * @param txn the transaction part of the entry
      * returns true iff something appended, otw false
      */
+    //写入到磁盘事务日志文件
     public synchronized boolean append(TxnHeader hdr, Record txn)
         throws IOException
     {
@@ -364,6 +365,7 @@ public class FileTxnLog implements TxnLog {
      * commit the logs. make sure that everything hits the
      * disk
      */
+    //提交刷盘
     public synchronized void commit() throws IOException {
         if (logStream != null) {
             logStream.flush();

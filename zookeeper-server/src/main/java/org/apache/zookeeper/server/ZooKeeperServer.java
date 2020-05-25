@@ -202,11 +202,11 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         setMinSessionTimeout(minSessionTimeout);
         setMaxSessionTimeout(maxSessionTimeout);
         this.listenBacklog = clientPortListenBacklog;
-
+        //zk的服务监听
         listener = new ZooKeeperServerListenerImpl(this);
-
+        //响应缓存
         readResponseCache = new ResponseCache();
-
+        //一些服务响应参数
         connThrottle = new BlueThrottle();
 
         LOG.info("Created server with tickTime " + tickTime
@@ -318,6 +318,8 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     /**
      *  Restore sessions and data
      */
+    //新的领导开始运行的时候才会调用这个方法(单台主机,无投票时候),如果存在投票的时候
+    //会在投票阶段先进行加载数据,用于zxid的生成
     public void loadData() throws IOException, InterruptedException {
         /*
          * When a new leader starts executing Leader#lead, it
@@ -338,9 +340,12 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
          * See ZOOKEEPER-1642 for more detail.
          */
         if(zkDb.isInitialized()){
+            //已经初始化
+            //给出当前最后一次处理的的zxid
             setZxid(zkDb.getDataTreeLastProcessedZxid());
         }
         else {
+            //未初始化,进行加载database,并且把当前的zxid设置成database的最后一次处理的zxid
             setZxid(zkDb.loadDataBase());
         }
 
@@ -351,12 +356,13 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 deadSessions.add(session);
             }
         }
-
+        //清理dead的session
         for (long session : deadSessions) {
             // XXX: Is lastProcessedZxid really the best thing to use?
             killSession(session, zkDb.getDataTreeLastProcessedZxid());
         }
 
+        //创建清理后的快照
         // Make a clean snapshot
         takeSnapshot();
     }
@@ -502,35 +508,44 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         }
     }
 
+    //启动时候初始化database(从磁盘)
     public void startdata()
     throws IOException, InterruptedException {
         //check to see if zkDb is not null
         if (zkDb == null) {
             zkDb = new ZKDatabase(this.txnLogFactory);
         }
+        //判断是否已经初始化过了(集群选票模式会在投票阶段进行初始化/加载database,以便初始化zxid用于投票)
         if (!zkDb.isInitialized()) {
+            //加载数据
             loadData();
         }
     }
 
     public synchronized void startup() {
         if (sessionTracker == null) {
+            //创建一个处理过期session的单独线程
             createSessionTracker();
         }
         startSessionTracker();
+        //设置请求处理链
         setupRequestProcessors();
-
+        //注册jmx监听
         registerJMX();
-
+        //设置server启动状态
         setState(State.RUNNING);
+        //通知其他等待线程 submitRequest()
         notifyAll();
     }
 
     protected void setupRequestProcessors() {
+        //最后的处理者,确认刷盘等
         RequestProcessor finalProcessor = new FinalRequestProcessor(this);
+        //同步处理 接收到上一个预处理的request后直接放入处理队列,然后执行run()
         RequestProcessor syncProcessor = new SyncRequestProcessor(this,
                 finalProcessor);
         ((SyncRequestProcessor)syncProcessor).start();
+        //请求预处理处理,并且在预处理完后 把request转给下一个处理人(同步处理)
         firstProcessor = new PrepRequestProcessor(this, syncProcessor);
         ((PrepRequestProcessor)firstProcessor).start();
     }
@@ -633,6 +648,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
 
         if (zkDb != null) {
             if (fullyShutDown) {
+                //完全关闭,清理掉zkdb
                 zkDb.clear();
             } else {
                 // else there is no need to clear the database
@@ -861,6 +877,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                     // processor it should wait for setting up the request
                     // processor chain. The state will be updated to RUNNING
                     // after the setup.
+                    //初始化时候 不能提交请求
                     while (state == State.INITIAL) {
                         wait(1000);
                     }
@@ -1309,6 +1326,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         return processTxn(request, request.getHdr(), request.getTxn());
     }
 
+    //处理事务请求
     private ProcessTxnResult processTxn(Request request, TxnHeader hdr,
                                         Record txn) {
         ProcessTxnResult rc;

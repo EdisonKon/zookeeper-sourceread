@@ -801,6 +801,7 @@ public class DataTree {
         return this.processTxn(header, txn, false);
     }
 
+    //在内存中处理请求
     public ProcessTxnResult processTxn(TxnHeader header, Record txn, boolean isSubTxn)
     {
         ProcessTxnResult rc = new ProcessTxnResult();
