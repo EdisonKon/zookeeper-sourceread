@@ -155,7 +155,8 @@ public abstract class ServerCnxnFactory {
     }
 
     public abstract void closeAll();
-    
+
+    //默认创建的IO处理线程工厂
     static public ServerCnxnFactory createFactory() throws IOException {
         String serverCnxnFactoryName =
             System.getProperty(ZOOKEEPER_SERVER_CNXN_FACTORY);

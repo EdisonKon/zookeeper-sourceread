@@ -86,6 +86,7 @@ public class QuorumPeerMain {
         //集群模式主类
         QuorumPeerMain main = new QuorumPeerMain();
         try {
+            //很简单的初始化,并运行(进入)
             main.initializeAndRun(args);
         } catch (IllegalArgumentException e) {
             LOG.error("Invalid arguments, exiting abnormally", e);
@@ -112,6 +113,7 @@ public class QuorumPeerMain {
         System.exit(ExitCode.EXECUTION_FINISHED.getValue());
     }
 
+    //开始解读
     protected void initializeAndRun(String[] args)
         throws ConfigException, IOException, AdminServerException
     {
@@ -121,25 +123,30 @@ public class QuorumPeerMain {
         }
 
         // Start and schedule the the purge task
+        //数据目录清理管理器
         DatadirCleanupManager purgeMgr = new DatadirCleanupManager(config
                 .getDataDir(), config.getDataLogDir(), config
                 .getSnapRetainCount(), config.getPurgeInterval());
+        //启动
         purgeMgr.start();
-
+        //判断是否是集群模式,如果是 -> runFromConfig
         if (args.length == 1 && config.isDistributed()) {
+            //从配置启动集群
             runFromConfig(config);
         } else {
+            //否则与转发给单机版的main
             LOG.warn("Either no config or no quorum defined in config, running "
                     + " in standalone mode");
             // there is only server in the quorum -- run as standalone
             ZooKeeperServerMain.main(args);
         }
     }
-
+    //gogogo,从配置读取,并启动主服务
     public void runFromConfig(QuorumPeerConfig config)
             throws IOException, AdminServerException
     {
       try {
+          //注册jmx的监控mbean
           ManagedUtil.registerLog4jMBeans();
       } catch (JMException e) {
           LOG.warn("Unable to register log4j JMX control", e);
@@ -148,6 +155,7 @@ public class QuorumPeerMain {
       LOG.info("Starting quorum peer");
       MetricsProvider metricsProvider;
       try {
+          //指标 //TODO 还是一些指标
         metricsProvider = MetricsProviderBootstrap
                       .startMetricsProvider(config.getMetricsProviderClassName(),
                                             config.getMetricsProviderConfiguration());
@@ -159,23 +167,25 @@ public class QuorumPeerMain {
 
           ServerCnxnFactory cnxnFactory = null;
           ServerCnxnFactory secureCnxnFactory = null;
-
+          //普通的serverio处理factory
           if (config.getClientPortAddress() != null) {
+              //默认NIO
               cnxnFactory = ServerCnxnFactory.createFactory();
               cnxnFactory.configure(config.getClientPortAddress(),
                       config.getMaxClientCnxns(),
                       config.getClientPortListenBacklog(), false);
           }
-
+          //安全的的serverio处理factory
           if (config.getSecureClientPortAddress() != null) {
               secureCnxnFactory = ServerCnxnFactory.createFactory();
               secureCnxnFactory.configure(config.getSecureClientPortAddress(),
                       config.getMaxClientCnxns(),
                       config.getClientPortListenBacklog(), true);
           }
-
+          //集群server实例
           quorumPeer = getQuorumPeer();
           quorumPeer.setRootMetricsContext(metricsProvider.getRootContext());
+          //设置日志和数据目录上下文
           quorumPeer.setTxnFactory(new FileTxnSnapLog(
                       config.getDataLogDir(),
                       config.getDataDir()));
@@ -184,20 +194,27 @@ public class QuorumPeerMain {
               config.isLocalSessionsUpgradingEnabled());
           //quorumPeer.setQuorumPeers(config.getAllMembers());
           quorumPeer.setElectionType(config.getElectionAlg());
+          //集群时候的serverid,cfg里配置的
           quorumPeer.setMyid(config.getServerId());
+          //设置滴答时间 也就是通信时间 (心跳)
           quorumPeer.setTickTime(config.getTickTime());
           quorumPeer.setMinSessionTimeout(config.getMinSessionTimeout());
           quorumPeer.setMaxSessionTimeout(config.getMaxSessionTimeout());
           quorumPeer.setInitLimit(config.getInitLimit());
           quorumPeer.setSyncLimit(config.getSyncLimit());
+          //设置观察者的连入端口
           quorumPeer.setObserverMasterPort(config.getObserverMasterPort());
+          //设置配置文件名称
           quorumPeer.setConfigFileName(config.getConfigFilename());
           quorumPeer.setClientPortListenBacklog(config.getClientPortListenBacklog());
+          //设置database(本地磁盘)
           quorumPeer.setZKDatabase(new ZKDatabase(quorumPeer.getTxnFactory()));
+          //创建集群验证(不同步到磁盘)
           quorumPeer.setQuorumVerifier(config.getQuorumVerifier(), false);
           if (config.getLastSeenQuorumVerifier()!=null) {
               quorumPeer.setLastSeenQuorumVerifier(config.getLastSeenQuorumVerifier(), false);
           }
+          //初始化zk数据库
           quorumPeer.initConfigInZKDatabase();
           quorumPeer.setCnxnFactory(cnxnFactory);
           quorumPeer.setSecureCnxnFactory(secureCnxnFactory);
@@ -219,10 +236,14 @@ public class QuorumPeerMain {
               quorumPeer.setQuorumServerLoginContext(config.quorumServerLoginContext);
               quorumPeer.setQuorumLearnerLoginContext(config.quorumLearnerLoginContext);
           }
+          //同时处理io的线程数
           quorumPeer.setQuorumCnxnThreadsSize(config.quorumCnxnThreadsSize);
+          //初始化这个server
+          //重新初始化一次 用于区别是否有auth验证 ???
           quorumPeer.initialize();
           
           quorumPeer.start();
+          //主线程进行等待
           quorumPeer.join();
       } catch (InterruptedException e) {
           // warn, but generally this is ok

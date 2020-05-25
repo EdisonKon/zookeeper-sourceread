@@ -619,6 +619,7 @@ public class ZKDatabase {
         this.snapLog.close();
     }
 
+    //初始化zk的数据库(local)
     public synchronized void initConfigInZKDatabase(QuorumVerifier qv) {
         if (qv == null) return; // only happens during tests
         try {
