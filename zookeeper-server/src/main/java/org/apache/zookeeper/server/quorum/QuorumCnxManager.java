@@ -253,9 +253,10 @@ public class QuorumCnxManager {
             return new InitialMessage(sid, new InetSocketAddress(host_port[0], port));
         }
     }
-
+    //集群互相通信线程管理
     public QuorumCnxManager(QuorumPeer self,
                             final long mySid,
+                            //集群集合map,机器的myid和集群server机器对象
                             Map<Long,QuorumPeer.QuorumServer> view,
                             QuorumAuthServer authServer,
                             QuorumAuthLearner authLearner,
@@ -263,9 +264,14 @@ public class QuorumCnxManager {
                             boolean listenOnAllIPs,
                             int quorumCnxnThreadsSize,
                             boolean quorumSaslAuthEnabled) {
+        //接收队列,用于存放从其他server接收到的队列
         this.recvQueue = new ArrayBlockingQueue<Message>(RECV_CAPACITY);
+        //发送队列,消息发送队列，用于保存那些待发送的消息。queueSendMap是一个Map，按照SID进行分组，
+        // 分别为集群中的每台机器分配了一个单独队列，从而保证各台机器之间的消息发送互不影响。
         this.queueSendMap = new ConcurrentHashMap<Long, ArrayBlockingQueue<ByteBuffer>>();
+        //对每台机器都有一个sendWorker对应(进入 sendWorker看一下)
         this.senderWorkerMap = new ConcurrentHashMap<Long, SendWorker>();
+        //保存每个sid发送的最后一条消息
         this.lastMessageSent = new ConcurrentHashMap<Long, ByteBuffer>();
 
         String cnxToValue = System.getProperty("zookeeper.cnxTimeout");
@@ -473,12 +479,13 @@ public class QuorumCnxManager {
      * possible long value to lose the challenge.
      *
      */
+    //接收到链接请求,之后会进行sid的比较在 handleConnection()里
     public void receiveConnection(final Socket sock) {
         DataInputStream din = null;
         try {
             din = new DataInputStream(
                     new BufferedInputStream(sock.getInputStream()));
-
+            //处理链接请求,进行 sid的比较, 链接放弃 和 数据处理
             handleConnection(sock, din);
         } catch (IOException e) {
             LOG.error("Exception handling connection, addr: {}, closing server connection",
@@ -491,6 +498,7 @@ public class QuorumCnxManager {
      * Server receives a connection request and handles it asynchronously via
      * separate thread.
      */
+    //异步处理接收到的链接请求
     public void receiveConnectionAsync(final Socket sock) {
         try {
             connectionExecutor.execute(
@@ -506,6 +514,7 @@ public class QuorumCnxManager {
     /**
      * Thread to receive connection request from peer server.
      */
+    //集群链接请求接收线程
     private class QuorumConnectionReceiverThread extends ZooKeeperThread {
         private final Socket sock;
         QuorumConnectionReceiverThread(final Socket sock) {
@@ -519,11 +528,28 @@ public class QuorumCnxManager {
         }
     }
 
+    /**
+     * 这个方法做了以下几件事：
+     * 1.获取数据输入流DataInputStream
+     * 2.读取协议版本信息，获取连接的server id和选举地址
+     * 3.判断是否是默认的观察者id OBSERVER_ID，如果是将观察者计数加一
+     * 4.对socket连接执行身份验证
+     * 5.判断自己的serverId 和 客户端的 serverId大小，这样设计是为了避免双向连接，只让sid更大的去主动连接其他服务器
+     * 6.如果自己的serverId更大，假如缓存了这个sid对应的SendWorker就关闭它，并且关闭掉这个socket连接，然后主动去连接这个服务器
+     * 7.如果对端的serverId更大，针对该sid的服务器初始化一个发送线程和接收线程处理信息的交互，假如缓存了这个sid对应的SendWorker就关闭它，
+     * 然后缓存这个发送线程，针对这个sid创建一个阻塞队列专门用来缓存将要发送的消息，最后再将发送线程和接收线程启动
+     *
+     * @param sock
+     * @param din
+     * @throws IOException
+     */
+    //处理server之间的socket链接
     private void handleConnection(Socket sock, DataInputStream din)
             throws IOException {
         Long sid = null, protocolVersion = null;
         InetSocketAddress electionAddr = null;
 
+        //获取收到的 sid 对方服务器serverid
         try {
             protocolVersion = din.readLong();
             if (protocolVersion >= 0) { // this is a server id and not a protocol version
@@ -557,6 +583,7 @@ public class QuorumCnxManager {
         // do authenticating learner
         authServer.authenticate(sock, din);
         //If wins the challenge, then close the new connection.
+        //如果对方的sid小于自己的sid 那么打开新的socket链接,由大号向小号进行发起链接
         if (sid < self.getId()) {
             /*
              * This replica might still believe that the connection to sid is
@@ -581,7 +608,9 @@ public class QuorumCnxManager {
             }
 
         } else { // Otherwise start worker threads to receive data.
+            //封装发送线程的worker
             SendWorker sw = new SendWorker(sock, sid);
+            //封装接收线程的worker
             RecvWorker rw = new RecvWorker(sock, din, sid, sw);
             sw.setRecv(rw);
 
@@ -592,7 +621,7 @@ public class QuorumCnxManager {
             }
 
             senderWorkerMap.put(sid, sw);
-
+            //设置一个大小为1的阻塞队列
             queueSendMap.putIfAbsent(sid,
                     new ArrayBlockingQueue<ByteBuffer>(SEND_CAPACITY));
 
@@ -698,7 +727,9 @@ public class QuorumCnxManager {
      *
      *  @param sid  server id
      */
+    //与sid建立socket链接
     synchronized void connectOne(long sid){
+        //如果链接已经有了,那直接return
         if (senderWorkerMap.get(sid) != null) {
             LOG.debug("There is a connection already for server " + sid);
             return;
@@ -861,6 +892,7 @@ public class QuorumCnxManager {
         /**
          * Sleeps on accept().
          */
+        //运行监听线程
         @Override
         public void run() {
             int numRetries = 0;
@@ -890,9 +922,11 @@ public class QuorumCnxManager {
                     }
                     LOG.info("My election bind port: " + addr.toString());
                     setName(addr.toString());
+                    //socket绑定ip
                     ss.bind(addr);
                     while (!shutdown) {
                         try {
+                            //阻塞直道另一台集群server机器启动,并且向自己发送链接请求
                             client = ss.accept();
                             setSockOpts(client);
                             LOG.info("Received connection request "
@@ -905,6 +939,7 @@ public class QuorumCnxManager {
                             if (quorumSaslAuthEnabled) {
                                 receiveConnectionAsync(client);
                             } else {
+                                //处理收到的socket链接请求
                                 receiveConnection(client);
                             }
                             numRetries = 0;
@@ -978,9 +1013,11 @@ public class QuorumCnxManager {
      * soon as there is one available. If connection breaks, then opens a new
      * one.
      */
+    //是一个用于发送消息的线程,维护了socket实例
     class SendWorker extends ZooKeeperThread {
         Long sid;
         Socket sock;
+        //接收消息的线程,监听socket的数据
         RecvWorker recvWorker;
         volatile boolean running = true;
         DataOutputStream dout;
@@ -994,6 +1031,7 @@ public class QuorumCnxManager {
          * @param sid
          *            Server identifier of remote peer
          */
+        //发送线程实例
         SendWorker(Socket sock, Long sid) {
             super("SendWorker:" + sid);
             this.sid = sid;
@@ -1078,6 +1116,7 @@ public class QuorumCnxManager {
                  * message than that stored in lastMessage. To avoid sending
                  * stale message, we should send the message in the send queue.
                  */
+                //如果发送队列是空的,那么就发送一遍最后发送过的消息给接收端,重复消息由接收端处理重复问题
                 ArrayBlockingQueue<ByteBuffer> bq = queueSendMap.get(sid);
                 if (bq == null || isSendQueueEmpty(bq)) {
                    ByteBuffer b = lastMessageSent.get(sid);
@@ -1096,9 +1135,10 @@ public class QuorumCnxManager {
 
                     ByteBuffer b = null;
                     try {
-                        ArrayBlockingQueue<ByteBuffer> bq = queueSendMap
-                                .get(sid);
+                        //当前队列不是空的 从队列里获取
+                        ArrayBlockingQueue<ByteBuffer> bq = queueSendMap.get(sid);
                         if (bq != null) {
+                            //从队列中获取
                             b = pollSendQueue(bq, 1000, TimeUnit.MILLISECONDS);
                         } else {
                             LOG.error("No queue of incoming messages for " +
@@ -1129,6 +1169,7 @@ public class QuorumCnxManager {
      * Thread to receive messages. Instance waits on a socket read. If the
      * channel breaks, then removes itself from the pool of receivers.
      */
+    //接收消息线程,等待socket读取数据
     class RecvWorker extends ZooKeeperThread {
         Long sid;
         Socket sock;

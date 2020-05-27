@@ -30,6 +30,7 @@ import org.apache.zookeeper.server.quorum.QuorumPeer.QuorumServer;
  *
  */
 
+//是一个投票验证的类
 public interface QuorumVerifier {
     long getWeight(long id);
     boolean containsQuorum(Set<Long> set);
